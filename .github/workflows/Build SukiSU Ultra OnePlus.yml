@@ -488,8 +488,7 @@ jobs:
           echo "分支名: $BRANCH_NAME"
           [[ -n "$CUSTOM_TAG" ]] && echo "自定义版本标识: $CUSTOM_TAG" || echo "自定义版本标识: 未启用"
           [[ -n "$MANUAL_HASH" ]] && echo "手动指定 hash: $MANUAL_HASH" || echo "手动指定 hash: 未启用"
-
-          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s "$BRANCH_NAME"
+          curl -LSs "https://raw.githubusercontent.com/zzh20188/SukiSU-Ultra/main/kernel/setup.sh" | bash -s susfs-main
           cd ./KernelSU
 
           # 如果指定了手动 hash，就切换到该提交
@@ -556,6 +555,24 @@ jobs:
         run: |
           cd kernel_workspace
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}
+          cd susfs4ksu
+          # 判断条件
+          if [ "${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}" = "android12-5.10" ]; then
+              echo "Matched: android12-5.10"
+              git checkout 8a76ba240d1f7315352b49d97d854a4b166e5b47
+          elif [ "${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}" = "android13-5.15" ]; then
+              echo "Matched: android13-5.15"
+              git checkout babf6be195576f09aae79650d47abf6a76e8a21b
+          elif [ "${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}" = "android14-6.1" ]; then
+              echo "Matched: android14-6.1"
+              git checkout a162e2469d0b472545e5e46457eee171c0975fb0
+          elif [ "${{ env.KANDROID_VERSION }}-${{ env.KERNEL_VERSION }}" = "android15-6.6" ]; then
+              echo "Matched: android15-6.6"
+              git checkout f450ec00bf592d080f59b01ff6f9242456c9a427
+          else
+              echo "No match found."
+          fi
+          cd ..
           git clone https://github.com/ShirkNeko/SukiSU_patch.git
           cd kernel_platform
           echo "正在拉取susfs补丁"
@@ -646,6 +663,13 @@ jobs:
           echo "正在打OGKI转换GKI补丁"
           patch -p1 -F 3 < hmbird_patch.patch
           echo "OGKI转换GKI_patch完成"
+       - name: Apply HOOK
+        run: |
+          cd kernel_workspace/kernel_platform/common
+          cp ../../SukiSU_patch/hooks/syscall_hooks.patch ./
+          echo "调用 manual 钩子"
+          patch -p1 -F 3 < syscall_hooks.patch
+         
 
       - name: Apply ZRAM
         if: ${{ github.event.inputs.ZRAM == 'true' }}
@@ -699,7 +723,8 @@ jobs:
 
           # KPM配置
           echo "CONFIG_KPM=y" >> "$CONFIG_FILE"
-
+          echo "CONFIG_KSU_SUSFS_SUS_SU=n" >> "$CONFIG_FILE"
+          echo "CONFIG_KSU_MANUAL_HOOK=y" >> "$CONFIG_FILE"
           # SUSFS配置
           echo "CONFIG_KSU_SUSFS=y" >> "$CONFIG_FILE"
           echo "CONFIG_KSU_SUSFS_SUS_PATH=y" >> "$CONFIG_FILE"
@@ -957,8 +982,8 @@ jobs:
         if: ${{ github.event.inputs.KPM == 'true' }}
         run: |
           cd kernel_workspace/kernel_platform/common
-          cp ../../SukiSU_patch/kpm/patch_linux ../out/Final-Image-Find/
           cd ../out/Final-Image-Find
+          curl -LSs "https://github.com/zzh20188/GKI_KernelSU_SUSFS/raw/refs/heads/feature/patch_linux" -o patch_linux
           chmod +x patch_linux
           ./patch_linux
           rm -f Image
